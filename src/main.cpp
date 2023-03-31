@@ -1,5 +1,22 @@
 #include <Arduino.h>
 #include "DHT.h"
+#include <ESP8266WiFi.h>
+#include <Ticker.h>
+#include <AsyncMqttClient.h>
+//WiFi
+#define WIFI_SSID "TP-Link_165C"
+#define WIFI_PASSWORD "99368319"
+
+#define MQTT_HOST IPAddress(192, 168, 0, 105)
+#define MQTT_PORT 1883
+#define MQTT_PUB "test"
+AsyncMqttClient mqttClient;
+Ticker mqttReconnectTimer;
+
+WiFiEventHandler wifiConnectHandler;
+WiFiEventHandler wifiDisconnectHandler;
+Ticker wifiReconnectTimer;
+
 //DHT11
 //definire pinul de output al senzorului DHT
 #define DHTPIN 5
@@ -22,13 +39,68 @@ const int analogInputPin = A0; //pinul A0 este pinul analog
 int gasSensorValue = 0; //initializare valoare cu 0
 //se va schimba dupa calibrare
 const int gasThreshold = 500; //pragul la care se detecteaza gaz
+//Wifi and MQTT functions
+void connectToWifi() {
+  Serial.println("Connecting to Wi-Fi...");
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void connectToMqtt() {
+  Serial.println("Connecting to MQTT...");
+  mqttClient.connect();
+}
+
+void onWifiConnect(const WiFiEventStationModeGotIP& event) {
+  Serial.println("Connected to Wi-Fi.");
+  connectToMqtt();
+}
+
+void onWifiDisconnect(const WiFiEventStationModeDisconnected& event) {
+  Serial.println("Disconnected from Wi-Fi.");
+  mqttReconnectTimer.detach(); // ensure we don't reconnect to MQTT while reconnecting to Wi-Fi
+  wifiReconnectTimer.once(2, connectToWifi);
+}
+
+void onMqttConnect(bool sessionPresent) {
+  Serial.println("Connected to MQTT.");
+  Serial.print("Session present: ");
+  Serial.println(sessionPresent);
+  uint16_t packetIdPub1 = mqttClient.publish(MQTT_PUB, 1, true, "test");
+  Serial.print("Publishing at QoS 1, packetId: ");
+  Serial.println(packetIdPub1);
+}
+
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+  Serial.println("Disconnected from MQTT.");
+
+  if (WiFi.isConnected()) {
+    mqttReconnectTimer.once(2, connectToMqtt);
+  }
+}
+void onMqttPublish(uint16_t packetId) {
+  Serial.println("Publish acknowledged.");
+  Serial.print("  packetId: ");
+  Serial.println(packetId);
+}
+
 void setup() {
     // put your setup code here, to run once:
     //Initializare port serial cu baud rate 115200 kbps
     Serial.begin(115200);
     Serial.println();
-    dht.begin();
+    
+    //Wifi
+    wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
+    wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWifiDisconnect);
+
+    mqttClient.onConnect(onMqttConnect);
+    mqttClient.onDisconnect(onMqttDisconnect);
+    mqttClient.onPublish(onMqttPublish);
+    mqttClient.setServer(MQTT_HOST, MQTT_PORT);
+
+    connectToWifi();
     pinMode(LightSensorPIN, INPUT); // definirea pinului la care este conectat senzorul ca intrare
+    dht.begin();
 }
 
 void loop() {
@@ -47,22 +119,17 @@ void loop() {
         Serial.print("Humidity: ");
         Serial.print(humidity);
         Serial.println(" %");
+        gasSensorValue = analogRead(analogInputPin);
+    Serial.println(gasSensorValue);
     }
     //SENZOR LUMINA
     lightStatus = digitalRead(LightSensorPIN); // citirea valorii pinului la care este conectat senzorul
     if(lightStatus == HIGH){
-        Serial.println("No light detected"); 
+        //Serial.println("No light detected"); 
     }
     else{
-        Serial.println("Light detected");
+        //Serial.println("Light detected");
     }
     //MQ9
     //Inca nu este calibrat!
-    gasSensorValue = analogRead(analogInputPin);
-    if(gasSensorValue > gasThreshold){
-        Serial.println("Gas detected");
-    }
-    else{
-        Serial.println("No gas detected");
-    }
 }
