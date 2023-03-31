@@ -9,7 +9,11 @@
 
 #define MQTT_HOST IPAddress(192, 168, 0, 105)
 #define MQTT_PORT 1883
-#define MQTT_PUB "test"
+#define MQTT_PUB_TEST "test"
+#define MQTT_PUB_TEMP "temp"
+#define MQTT_PUB_HUM "hum"
+#define MQTT_PUB_LIGHT "light"
+#define MQTT_PUB_GAS "gas"
 AsyncMqttClient mqttClient;
 Ticker mqttReconnectTimer;
 
@@ -65,7 +69,7 @@ void onMqttConnect(bool sessionPresent) {
   Serial.println("Connected to MQTT.");
   Serial.print("Session present: ");
   Serial.println(sessionPresent);
-  uint16_t packetIdPub1 = mqttClient.publish(MQTT_PUB, 1, true, "test");
+  uint16_t packetIdPub1 = mqttClient.publish(MQTT_PUB_TEST, 1, true, "test");
   Serial.print("Publishing at QoS 1, packetId: ");
   Serial.println(packetIdPub1);
 }
@@ -116,20 +120,28 @@ void loop() {
         Serial.print("Temperature: ");
         Serial.print(temperature);
         Serial.println(" C");
+        uint16_t packetIdPubTemp = mqttClient.publish(MQTT_PUB_TEMP, 1, true, String(temperature).c_str());
+        Serial.print("Publishing at QoS 1, packetId: ");
+        Serial.println(packetIdPubTemp);
+
         Serial.print("Humidity: ");
         Serial.print(humidity);
         Serial.println(" %");
+
+        uint16_t packetIdPubHum = mqttClient.publish(MQTT_PUB_HUM, 1, true, String(humidity).c_str());
+        Serial.print("Publishing at QoS 1, packetId: ");
+        Serial.println(packetIdPubHum);
         gasSensorValue = analogRead(analogInputPin);
-    Serial.println(gasSensorValue);
+        Serial.println(gasSensorValue);
+        uint16_t packetIdPubGas = mqttClient.publish(MQTT_PUB_GAS, 1, true, String(gasSensorValue).c_str());
+        Serial.print("Publishing at QoS 1, packetId: ");
+        Serial.println(packetIdPubGas);
+        lightStatus = digitalRead(LightSensorPIN); // citirea valorii pinului la care este conectat senzorul
+        uint16_t packetIdPubLight = mqttClient.publish(MQTT_PUB_LIGHT, 1, true, String(lightStatus).c_str());
+        Serial.print("Publishing at QoS 1, packetId: ");
+        Serial.println(packetIdPubLight);
     }
     //SENZOR LUMINA
-    lightStatus = digitalRead(LightSensorPIN); // citirea valorii pinului la care este conectat senzorul
-    if(lightStatus == HIGH){
-        //Serial.println("No light detected"); 
-    }
-    else{
-        //Serial.println("Light detected");
-    }
     //MQ9
     //Inca nu este calibrat!
 }
