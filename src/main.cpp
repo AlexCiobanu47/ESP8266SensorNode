@@ -14,6 +14,7 @@
 #define MQTT_PUB_HUM "hum"
 #define MQTT_PUB_LIGHT "light"
 #define MQTT_PUB_GAS "gas"
+#define MQTT_PUB_MOTION "motion"
 AsyncMqttClient mqttClient;
 Ticker mqttReconnectTimer;
 
@@ -43,6 +44,12 @@ const int analogInputPin = A0; //pinul A0 este pinul analog
 int gasSensorValue = 0; //initializare valoare cu 0
 //se va schimba dupa calibrare
 const int gasThreshold = 500; //pragul la care se detecteaza gaz
+//miscare
+const int motionDetectorPin = 13;
+int motionStatus = LOW;
+unsigned long currentTime = millis();
+unsigned long lastDetectionTime = 0;
+bool timerHasStarted = false;
 //Wifi and MQTT functions
 void connectToWifi() {
   Serial.println("Connecting to Wi-Fi...");
@@ -86,7 +93,20 @@ void onMqttPublish(uint16_t packetId) {
   Serial.print("  packetId: ");
   Serial.println(packetId);
 }
-
+IRAM_ATTR void motionDetected(){
+  static unsigned long lastInterruptTime = 0;
+  unsigned long interruptTime = millis();
+  if(interruptTime - lastInterruptTime > 5){
+    motionStatus = HIGH;
+    Serial.println("motion detected");
+    Serial.println("motion detected");
+    Serial.println("motion detected");
+    Serial.println("motion detected");
+    Serial.println("motion detected");
+    timerHasStarted = true;
+    lastDetectionTime = millis();
+  }
+}
 void setup() {
     // put your setup code here, to run once:
     //Initializare port serial cu baud rate 115200 kbps
@@ -101,7 +121,9 @@ void setup() {
     mqttClient.onDisconnect(onMqttDisconnect);
     mqttClient.onPublish(onMqttPublish);
     mqttClient.setServer(MQTT_HOST, MQTT_PORT);
-
+    //
+    pinMode(motionDetectorPin, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(motionDetectorPin), motionDetected, RISING);
     connectToWifi();
     pinMode(LightSensorPIN, INPUT); // definirea pinului la care este conectat senzorul ca intrare
     dht.begin();
@@ -140,6 +162,19 @@ void loop() {
         uint16_t packetIdPubLight = mqttClient.publish(MQTT_PUB_LIGHT, 1, true, String(lightStatus).c_str());
         Serial.print("Publishing at QoS 1, packetId: ");
         Serial.println(packetIdPubLight);
+        uint16_t packetIdPubMotion = mqttClient.publish(MQTT_PUB_MOTION, 1, true, String(motionStatus).c_str());
+        Serial.print("Publishing at QoS 1, packetId: ");
+        Serial.println(packetIdPubMotion);
+    }
+    currentTime = millis();
+    if(timerHasStarted && (currentTime - lastDetectionTime > 5000)){
+      motionStatus = LOW;
+      Serial.println("motion stopped");
+      Serial.println("motion stopped");
+      Serial.println("motion stopped");
+      Serial.println("motion stopped");
+      Serial.println("motion stopped");
+      timerHasStarted = false;
     }
     //SENZOR LUMINA
     //MQ9
